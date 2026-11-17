@@ -11,7 +11,8 @@ function fenceFor(text: string): string {
 export function markdownReport(input: ReportInput): string {
   const lines = [`# Review Report: ${input.repositoryPath}`, "", "## Changed files"];
   for (const file of input.changedFiles) {
-    lines.push(`- ${file.path} (${file.status})`);
+    const from = file.oldPath ? ` from ${file.oldPath}` : "";
+    lines.push(`- ${file.path} (${file.status}${from})`);
   }
   lines.push("", "## Validation output");
   for (const result of input.validationResults) {

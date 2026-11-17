@@ -2,7 +2,9 @@ import type { CheckName } from "./policy.js";
 
 export type ChangedFile = {
   path: string;
-  status: "added" | "modified" | "deleted" | "untracked";
+  status: "added" | "modified" | "deleted" | "renamed" | "copied" | "untracked";
+  /** Previous path, for renamed and copied files. */
+  oldPath?: string;
 };
 
 export type ValidationResult = {
