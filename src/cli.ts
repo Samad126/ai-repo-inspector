@@ -43,6 +43,14 @@ async function main() {
   const fileName = reportFileName(args.format);
   writeFileSync(fileName, renderReport(result, args.format), "utf8");
   console.log(`Review report written to ${fileName}`);
+
+  // Exit non-zero when a validation failed so the CLI can gate CI. The report
+  // is written first, so the failure details are still available.
+  const failed = result.validationResults.filter((v) => v.status === "failed").length;
+  if (failed > 0) {
+    console.error(`${failed} of ${result.validationResults.length} validations failed`);
+    process.exitCode = 1;
+  }
 }
 
 main().catch((error) => {
