@@ -101,10 +101,13 @@ describe("changedFiles errors", () => {
 
   it("never leaks raw git stderr into the message", () => {
     makeRepo(dir);
+    let message = "";
     try {
       changedFiles(dir, "nosuchbranch");
     } catch (error) {
-      expect((error as Error).message).not.toMatch(/fatal:|usage:/i);
+      message = (error as Error).message;
     }
+    expect(message).not.toBe(""); // it must actually have thrown
+    expect(message).not.toMatch(/fatal:|usage:/i);
   });
 });

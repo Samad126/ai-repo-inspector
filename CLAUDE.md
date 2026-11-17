@@ -9,8 +9,11 @@ TypeScript (ESM, Node >=20) dev tool: inspects Git changes, runs optional valida
 - `npm run inspector` / `npm run mcp-server` — run via tsx
 
 ## Layout
-- `src/core.ts` — inspection logic; `git.ts` — git access; `report.ts` — Markdown output; `validation.ts` — validation command running; `types.ts` — shared types
-- CLI and MCP must stay behaviorally consistent; share logic in `core.ts`, not in the entry points.
+- `core.ts` — orchestration, returns a structured `ReviewResult`; `report.ts` — renders Markdown/JSON
+- `git.ts` — git access, rename parsing, `GitError`; `validation.ts` — runs shell commands (CLI) and allowlisted checks (MCP)
+- `policy.ts` — MCP trust boundary (allowlist, repo root, ref validation, `PolicyError`); `config.ts` — `INSPECTOR_ROOT`
+- `args.ts` — CLI parsing; `cli.ts` — CLI adapter; `server.ts` — MCP server (`createServer`); `mcp-server.ts` — stdio entry point
+- CLI and MCP must stay behaviorally consistent; share logic in `core.ts`/`report.ts`, not in the entry points.
 
 ## Conventions
 - ESM: use `.js` extensions in relative imports.
