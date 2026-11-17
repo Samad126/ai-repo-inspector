@@ -8,6 +8,8 @@ export type ValidationResult = {
   status: "passed" | "failed";
   output: string;
   exitCode?: number | null;
+  timedOut?: boolean;
+  truncated?: boolean;
 };
 
 export type ReviewRequest = {
