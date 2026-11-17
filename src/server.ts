@@ -21,6 +21,8 @@ export function createServer({ root }: ServerOptions): McpServer {
       baseRef: z.string().optional().describe("Base ref to diff against. Defaults to main."),
       checks: z
         .array(z.enum(CHECK_NAMES))
+        .max(CHECK_NAMES.length)
+        .refine((names) => new Set(names).size === names.length, "checks must not repeat")
         .optional()
         .describe("Named checks to run. Arbitrary commands are not accepted."),
       format: z

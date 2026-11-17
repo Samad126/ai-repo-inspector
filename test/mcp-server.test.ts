@@ -117,6 +117,32 @@ describe("review_repository strict input", () => {
   });
 });
 
+describe("review_repository checks limits", () => {
+  it("rejects repeated checks", async () => {
+    const { isError, text } = await call({ repo_path: repo, baseRef: "main", checks: ["build", "build"] });
+    expect(isError).toBe(true);
+    expect(text).toMatch(/must not repeat/);
+  });
+
+  it("rejects a long list of checks without running them", async () => {
+    const checks = Array.from({ length: 1000 }, () => "build");
+    const started = Date.now();
+    const { isError } = await call({ repo_path: repo, baseRef: "main", checks });
+    expect(isError).toBe(true);
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+
+  it("advertises at most one of each check in the tool schema", async () => {
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await createServer({ root }).connect(serverSide);
+    const client = new Client({ name: "test", version: "1" });
+    await client.connect(clientSide);
+    const { tools } = await client.listTools();
+    const checks = (tools[0].inputSchema.properties as any).checks;
+    expect(checks.maxItems).toBe(3);
+  });
+});
+
 describe("review_repository trust boundary", () => {
   it("never runs arbitrary shell strings", async () => {
     const marker = join(outside, "pwned");
