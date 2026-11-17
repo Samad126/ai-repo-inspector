@@ -85,6 +85,14 @@ describe("review_repository format", () => {
   });
 });
 
+describe("review_repository git errors", () => {
+  it("returns a readable error for an unknown base ref", async () => {
+    const { isError, text } = await call({ repo_path: repo, baseRef: "nosuchbranch" });
+    expect(isError).toBe(true);
+    expect(text).toMatch(/Base ref "nosuchbranch" was not found/);
+  });
+});
+
 describe("review_repository trust boundary", () => {
   it("never runs arbitrary shell strings", async () => {
     const marker = join(outside, "pwned");

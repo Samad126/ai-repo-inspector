@@ -2,11 +2,41 @@ import { execFileSync } from "node:child_process";
 import { assertSafeRef } from "./policy.js";
 import type { ChangedFile } from "./types.js";
 
-function git(repositoryPath: string, args: string[]): string {
-  return execFileSync("git", args, {
-    cwd: repositoryPath,
-    encoding: "utf8",
-  });
+/** A git problem the user can act on. The message is safe to show to any client. */
+export class GitError extends Error {}
+
+type GitResult = { ok: true; stdout: string } | { ok: false; stderr: string };
+
+function runGit(repositoryPath: string, args: string[]): GitResult {
+  try {
+    const stdout = execFileSync("git", args, {
+      cwd: repositoryPath,
+      encoding: "utf8",
+      // Capture stderr: otherwise git's own error text goes straight to the terminal.
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    return { ok: true, stdout };
+  } catch (error) {
+    const { stderr, code } = error as { stderr?: Buffer | string; code?: string };
+    if (code === "ENOENT") throw new GitError("git could not be run (is it installed and on PATH?)");
+    return { ok: false, stderr: String(stderr ?? "").trim() };
+  }
+}
+
+/** Check the preconditions explicitly, so errors do not depend on git's (localized) wording. */
+function assertReviewable(repositoryPath: string, base: string): void {
+  if (!runGit(repositoryPath, ["rev-parse", "--is-inside-work-tree"]).ok) {
+    throw new GitError(`Not a git repository: ${repositoryPath}`);
+  }
+  if (!runGit(repositoryPath, ["rev-parse", "--verify", "--quiet", "HEAD^{commit}"]).ok) {
+    throw new GitError("This repository has no commits yet, so there is nothing to review");
+  }
+  if (!runGit(repositoryPath, ["rev-parse", "--verify", "--quiet", `${base}^{commit}`]).ok) {
+    throw new GitError(
+      `Base ref "${base}" was not found in this repository. ` +
+        'Specify an existing branch or commit as the base ref (the default is "main").',
+    );
+  }
 }
 
 /**
@@ -35,8 +65,14 @@ export function changedFiles(repositoryPath: string, baseRef?: string): ChangedF
   const base = baseRef ?? "main";
   assertSafeRef(base);
   // --find-renames is explicit so a user's diff.renames=false cannot change the report.
-  const output = git(repositoryPath, [
+  assertReviewable(repositoryPath, base);
+  const result = runGit(repositoryPath, [
     "diff", "--name-status", "-z", "--find-renames", `${base}...HEAD`,
   ]);
-  return parseNameStatus(output);
+  if (!result.ok) {
+    // e.g. no merge base between the base ref and HEAD
+    const reason = result.stderr.split("\n")[0] || "unknown error";
+    throw new GitError(`Could not compare ${base} with HEAD: ${reason}`);
+  }
+  return parseNameStatus(result.stdout);
 }

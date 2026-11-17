@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { reviewRepository } from "./core.js";
+import { GitError } from "./git.js";
 import { CHECK_NAMES, PolicyError, resolveRepo } from "./policy.js";
 import { renderReport } from "./report.js";
 
@@ -40,7 +41,7 @@ export function createServer({ root }: ServerOptions): McpServer {
           ? { content: [{ type: "text" as const, text }], structuredContent: { ...result } }
           : { content: [{ type: "text" as const, text }] };
       } catch (error) {
-        if (error instanceof PolicyError) {
+        if (error instanceof PolicyError || error instanceof GitError) {
           return { isError: true, content: [{ type: "text", text: error.message }] };
         }
         throw error;

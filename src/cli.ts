@@ -2,6 +2,7 @@
 import { statSync, writeFileSync } from "node:fs";
 import { parseArgs, UsageError, USAGE } from "./args.js";
 import { reviewRepository } from "./core.js";
+import { GitError } from "./git.js";
 import { renderReport, reportFileName } from "./report.js";
 
 async function main() {
@@ -24,11 +25,21 @@ async function main() {
     return;
   }
 
-  const result = await reviewRepository({
-    repositoryPath: args.repositoryPath,
-    baseRef: args.baseRef,
-    validationCommands: args.validations,
-  });
+  let result;
+  try {
+    result = await reviewRepository({
+      repositoryPath: args.repositoryPath,
+      baseRef: args.baseRef,
+      validationCommands: args.validations,
+    });
+  } catch (error) {
+    if (error instanceof GitError) {
+      console.error(error.message);
+      process.exitCode = 1;
+      return;
+    }
+    throw error;
+  }
   const fileName = reportFileName(args.format);
   writeFileSync(fileName, renderReport(result, args.format), "utf8");
   console.log(`Review report written to ${fileName}`);

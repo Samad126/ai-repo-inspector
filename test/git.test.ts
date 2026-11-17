@@ -2,7 +2,7 @@ import { mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { changedFiles, parseNameStatus } from "../src/git.js";
+import { changedFiles, GitError, parseNameStatus } from "../src/git.js";
 import { markdownReport } from "../src/report.js";
 import { git, makeRepo } from "./helpers.js";
 
@@ -67,5 +67,44 @@ describe("markdownReport renames", () => {
       validationResults: [],
     });
     expect(md).toContain("- new.txt (renamed from old.txt)");
+  });
+});
+
+describe("changedFiles errors", () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "git-err-"));
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it("explains a missing default base ref instead of crashing (master-only repo)", () => {
+    git(dir, "init", "-q", "-b", "master");
+    git(dir, "commit", "-q", "--allow-empty", "-m", "init");
+    expect(() => changedFiles(dir)).toThrow(GitError);
+    expect(() => changedFiles(dir)).toThrow(/Base ref "main" was not found/);
+  });
+
+  it("explains an unknown base ref", () => {
+    makeRepo(dir);
+    expect(() => changedFiles(dir, "nosuchbranch")).toThrow(/Base ref "nosuchbranch" was not found/);
+  });
+
+  it("explains a repository with no commits", () => {
+    git(dir, "init", "-q", "-b", "main");
+    expect(() => changedFiles(dir, "main")).toThrow(/no commits/);
+  });
+
+  it("explains a directory that is not a git repository", () => {
+    expect(() => changedFiles(dir, "main")).toThrow(GitError);
+    expect(() => changedFiles(dir, "main")).not.toThrow(/--no-index|Command failed/);
+  });
+
+  it("never leaks raw git stderr into the message", () => {
+    makeRepo(dir);
+    try {
+      changedFiles(dir, "nosuchbranch");
+    } catch (error) {
+      expect((error as Error).message).not.toMatch(/fatal:|usage:/i);
+    }
   });
 });
