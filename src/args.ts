@@ -1,10 +1,12 @@
+import type { ReportFormat } from "./types.js";
+
 export class UsageError extends Error {}
 
 export type Args = {
   command: "review";
   repositoryPath: string;
   baseRef?: string;
-  format?: "markdown" | "json";
+  format?: ReportFormat;
   validations: string[];
 };
 

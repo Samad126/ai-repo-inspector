@@ -1,30 +1,11 @@
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createServer } from "../src/server.js";
-
-const git = (cwd: string, ...args: string[]) =>
-  execFileSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", ...args], { cwd });
-
-function makeRepo(dir: string) {
-  mkdirSync(dir, { recursive: true });
-  git(dir, "init", "-q", "-b", "main");
-  writeFileSync(join(dir, "a.txt"), "a");
-  writeFileSync(
-    join(dir, "package.json"),
-    JSON.stringify({ scripts: { test: "echo ran-test", build: "echo ran-build" } }),
-  );
-  git(dir, "add", ".");
-  git(dir, "commit", "-qm", "init");
-  git(dir, "checkout", "-q", "-b", "feat");
-  writeFileSync(join(dir, "b.txt"), "b");
-  git(dir, "add", ".");
-  git(dir, "commit", "-qm", "change");
-}
+import { makeRepo } from "./helpers.js";
 
 let root: string; // the allowed root
 let repo: string; // a repo inside the root
@@ -49,10 +30,14 @@ async function call(args: Record<string, unknown>) {
   try {
     const result = await client.callTool({ name: "review_repository", arguments: args });
     const text = (result.content as { text: string }[])[0]?.text ?? "";
-    return { isError: Boolean(result.isError), text };
+    return {
+      isError: Boolean(result.isError),
+      text,
+      structured: result.structuredContent as Record<string, unknown> | undefined,
+    };
   } catch (error) {
     // Older/newer SDKs report schema violations as a thrown protocol error.
-    return { isError: true, text: String(error) };
+    return { isError: true, text: String(error), structured: undefined };
   }
 }
 
@@ -69,6 +54,34 @@ describe("review_repository tool", () => {
     expect(text).toContain("### npm test (passed)");
     expect(text).toContain("ran-test");
     expect(text).toContain("### npm run build (passed)");
+  });
+});
+
+describe("review_repository format", () => {
+  it("returns JSON text and structuredContent when format is json", async () => {
+    const { isError, text, structured } = await call({
+      repo_path: repo,
+      baseRef: "main",
+      checks: ["test"],
+      format: "json",
+    });
+    expect(isError).toBe(false);
+    const parsed = JSON.parse(text);
+    expect(parsed.schemaVersion).toBe(1);
+    expect(parsed.changedFiles).toEqual([{ path: "b.txt", status: "added" }]);
+    expect(parsed.validationResults[0]).toMatchObject({ command: "npm test", status: "passed" });
+    expect(structured).toEqual(parsed);
+  });
+
+  it("returns markdown without structuredContent by default", async () => {
+    const { text, structured } = await call({ repo_path: repo, baseRef: "main" });
+    expect(text.startsWith("# Review Report:")).toBe(true);
+    expect(structured).toBeUndefined();
+  });
+
+  it("rejects an unknown format", async () => {
+    const { isError } = await call({ repo_path: repo, baseRef: "main", format: "xml" });
+    expect(isError).toBe(true);
   });
 });
 
