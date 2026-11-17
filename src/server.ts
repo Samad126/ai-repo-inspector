@@ -13,11 +13,10 @@ export type ServerOptions = {
 export function createServer({ root }: ServerOptions): McpServer {
   const server = new McpServer({ name: "repository-inspector", version: "2.0.0" });
 
-  server.tool(
-    "review_repository",
-    "Inspects a Git repository under the configured root and returns a review report. " +
-      "Optional checks (test, typecheck, build) run the repository's npm scripts.",
-    {
+  // .strict(): unknown arguments are an error. Silently dropping them would let
+  // a client believe it had run validation (or passed a path) when it had not.
+  const inputSchema = z
+    .object({
       repo_path: z.string().describe("Path to a Git repository inside the allowed root."),
       baseRef: z.string().optional().describe("Base ref to diff against. Defaults to main."),
       checks: z
@@ -28,6 +27,16 @@ export function createServer({ root }: ServerOptions): McpServer {
         .enum(["markdown", "json"])
         .optional()
         .describe("Report format. json also returns structuredContent. Defaults to markdown."),
+    })
+    .strict();
+
+  server.registerTool(
+    "review_repository",
+    {
+      description:
+        "Inspects a Git repository under the configured root and returns a review report. " +
+        "Optional checks (test, typecheck, build) run the repository's npm scripts.",
+      inputSchema,
     },
     async ({ repo_path, baseRef, checks, format }) => {
       try {

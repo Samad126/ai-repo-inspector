@@ -93,6 +93,30 @@ describe("review_repository git errors", () => {
   });
 });
 
+describe("review_repository strict input", () => {
+  it.each([
+    ["validationCommands", ["echo hi"]],
+    ["command", "echo hi"],
+    ["repoPath", "/tmp"],
+  ])("rejects the unknown argument %s instead of silently ignoring it", async (key, value) => {
+    const { isError, text } = await call({ repo_path: repo, baseRef: "main", [key]: value });
+    expect(isError).toBe(true);
+    expect(text).toContain(key);
+  });
+
+  it("advertises additionalProperties:false so clients can see the contract", async () => {
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await createServer({ root }).connect(serverSide);
+    const client = new Client({ name: "test", version: "1" });
+    await client.connect(clientSide);
+    const { tools } = await client.listTools();
+    const schema = tools.find((t) => t.name === "review_repository")!.inputSchema;
+    expect(schema.additionalProperties).toBe(false);
+    expect(Object.keys(schema.properties ?? {}).sort()).toEqual(["baseRef", "checks", "format", "repo_path"]);
+    expect(schema.required).toEqual(["repo_path"]);
+  });
+});
+
 describe("review_repository trust boundary", () => {
   it("never runs arbitrary shell strings", async () => {
     const marker = join(outside, "pwned");
