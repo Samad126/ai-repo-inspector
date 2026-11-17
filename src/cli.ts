@@ -3,6 +3,7 @@ import { statSync, writeFileSync } from "node:fs";
 import { parseArgs, UsageError, USAGE } from "./args.js";
 import { reviewRepository } from "./core.js";
 import { GitError } from "./git.js";
+import { PolicyError } from "./policy.js";
 import { renderReport, reportFileName } from "./report.js";
 
 async function main() {
@@ -33,7 +34,7 @@ async function main() {
       validationCommands: args.validations,
     });
   } catch (error) {
-    if (error instanceof GitError) {
+    if (error instanceof GitError || error instanceof PolicyError) {
       console.error(error.message);
       process.exitCode = 1;
       return;

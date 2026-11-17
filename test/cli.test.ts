@@ -59,7 +59,7 @@ describe("cli exit code", () => {
     expect(report).toContain("### exit 3 (failed)");
   });
 
-  it("exits 1 for a timed-out or missing command too", () => {
+  it("exits 1 when the validation command does not exist", () => {
     const result = run("review", "--repo", repo, "--base-ref", "main", "--validate", "no-such-command-xyz");
     expect(result.status).toBe(1);
   });
@@ -67,5 +67,14 @@ describe("cli exit code", () => {
   it("does not write a report when the arguments are invalid", () => {
     run("review", "--bogus");
     expect(existsSync(join(cwd, "review-report.md"))).toBe(false);
+  });
+});
+
+describe("cli rejects unsafe base refs cleanly", () => {
+  it.each(["a b", "-x", "a;touch pwned"])("prints a readable error for --base-ref %j", (ref) => {
+    const result = run("review", "--repo", repo, "--base-ref", ref);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/baseRef/);
+    expect(result.stderr).not.toMatch(/Fatal error|\n\s+at /);
   });
 });
