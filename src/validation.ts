@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { ALLOWED_CHECKS, type CheckName } from "./policy.js";
 import type { ValidationResult } from "./types.js";
 
 export const DEFAULT_TIMEOUT_MS = 60_000;
@@ -9,20 +10,53 @@ export type ValidationLimits = {
   maxOutputBytes?: number;
 };
 
+/** Run a shell command string. Only for trusted callers (the CLI). */
 export function runValidation(
   command: string,
   cwd: string,
   limits: ValidationLimits = {},
 ): Promise<ValidationResult> {
+  return execute(command, command, [], true, cwd, limits);
+}
+
+/** Run an allowlisted check as a fixed argv, with no shell. */
+export function runCheck(
+  name: CheckName,
+  cwd: string,
+  limits: ValidationLimits = {},
+): Promise<ValidationResult> {
+  const { file, args } = ALLOWED_CHECKS[name];
+  return execute([file, ...args].join(" "), file, [...args], false, cwd, limits);
+}
+
+export async function runChecks(
+  names: CheckName[],
+  cwd: string,
+  limits?: ValidationLimits,
+): Promise<ValidationResult[]> {
+  const results: ValidationResult[] = [];
+  for (const name of names) results.push(await runCheck(name, cwd, limits));
+  return results;
+}
+
+function execute(
+  label: string,
+  file: string,
+  args: string[],
+  shell: boolean,
+  cwd: string,
+  limits: ValidationLimits,
+): Promise<ValidationResult> {
+  const command = label;
   const timeoutMs = limits.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const maxBytes = limits.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
 
   return new Promise((resolve) => {
     // Own process group, so a timeout can kill grandchildren that would
     // otherwise keep the output pipes open.
-    const child = spawn(command, {
+    const child = spawn(file, args, {
       cwd,
-      shell: true,
+      shell,
       detached: true,
       stdio: ["ignore", "pipe", "pipe"],
     });

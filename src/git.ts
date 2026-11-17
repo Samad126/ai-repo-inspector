@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { assertSafeRef } from "./policy.js";
 import type { ChangedFile } from "./types.js";
 
 function git(repositoryPath: string, args: string[]): string {
@@ -10,6 +11,7 @@ function git(repositoryPath: string, args: string[]): string {
 
 export function changedFiles(repositoryPath: string, baseRef?: string): ChangedFile[] {
   const base = baseRef ?? "main";
+  assertSafeRef(base);
   const output = git(repositoryPath, ["diff", "--name-status", `${base}...HEAD`]);
 
   return output
